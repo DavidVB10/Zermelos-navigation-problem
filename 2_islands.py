@@ -20,24 +20,32 @@ x, y, t = np.linspace(xmin, xmax, Nx), np.linspace(ymin, ymax, Ny), np.linspace(
 X, Y = np.meshgrid(x, y, indexing="ij")
 
 # CONTROL FUNCTION
-Na_mod, Na_angle = 51, 52
+Na_mod, Na_angle = 5, 12
 a_mod = np.linspace(0, 1, Na_mod)
 a_angle = np.linspace(0, 2*np.pi, Na_angle, endpoint=False)
 
-def mask_island(X, Y, r=0.01):
-	mask = (X**2+Y**2)<r**2
-	X_island = X[mask]
-	Y_island = Y[mask]
-	xmid_island = np.mean(X_island)
-	ymid_island = np.mean(Y_island)
-	return mask, xmid_island, ymid_island
+def mask_island(X, Y, r=1):
+	mask1 = ((X-1)**2+(Y-2)**2)<1
+	mask2 = ((X+1)**2+(Y+2)**2)<1
+	X_island1 = X[mask1]
+	Y_island1 = Y[mask1]
+	X_island2 = X[mask2]
+	Y_island2 = Y[mask2]
+	xmid_island1 = np.mean(X_island1)
+	ymid_island1 = np.mean(Y_island1)
+	xmid_island2 = np.mean(X_island2)
+	ymid_island2 = np.mean(Y_island2)
+	mask = mask1+mask2
+	return mask, (xmid_island1, ymid_island1), (xmid_island2, ymid_island2)
 
 # MAIN PICTURE (TARGET, OBSTACLES AND SWIMMER FIRST POSITION)
-mask_island, xmid_island, ymid_island = mask_island(X,Y)
+mask_island, (xmid_island1, ymid_island1), (xmid_island2, ymid_island2) = mask_island(X,Y)
 X_island = X[mask_island]
 Y_island = Y[mask_island]
 x0 = random.uniform(xmin, xmax)
 y0 = random.uniform(ymin, ymax)
+x0 = -3
+y0 = 4
 
 ########################################################################
 #                            FUNCTIONS                                 #
@@ -110,10 +118,16 @@ def exit_cost(V, X, Y, big_num = 1e3, mask = mask_island):
 	V[-1, np.invert(mask)] = big_num/3
 	return V
 
-def running_cost(x, y, t, a, w_target=1/4, w_t=1/4, w_a=1/4, x0 = xmid_island, y0 = ymid_island):
-	return w_target*np.sqrt((x-x0)**2+(y-y0)**2)
+def running_cost(x, y, t, a, w_x=1/4, w_y=1/4, w_t=1/4, w_a=1/4, x0 = xmid_island1, y0 = ymid_island1, x1=xmid_island2, y1=ymid_island2):
+	mask_island1 = (np.sqrt((x-x0)**2+(y-y0)**2))<(np.sqrt((x-x1)**2+(y-y1)**2))
+	mask_island2 = (np.sqrt((x-x0)**2+(y-y0)**2))>(np.sqrt((x-x1)**2+(y-y1)**2))
+	mask_island1 = np.where(mask_island1==True, w_x*(abs(x-x0))+w_y*(abs(y-y0)), mask_island1)
+	mask_island2 = np.where(mask_island2==True, w_x*(abs(x-x1))+w_y*(abs(y-y1)), mask_island2)
+	mask = mask_island1+mask_island2
+	mask = np.where(mask==False, w_x*(abs(x-x0)+abs(x-x1))+w_y*(abs(y-y0)+abs(y-y1)), mask)
+	return mask
 
-def drift(x, y, mod = 0):
+def drift(x, y, mod = 0.7):
 	return [-mod/np.sqrt(2),-mod/np.sqrt(2)]
 
 ########################################################################
@@ -147,7 +161,7 @@ def update(frame):
 ani = animation.FuncAnimation(fig=fig, func=update, frames=Nt, interval=100, repeat=False)
 script_dir = os.path.dirname(__file__)
 results_dir = os.path.join(script_dir, 'RESULTS/')
-sample_file_name = "main.mp4"
+sample_file_name = "2_island.mp4"
 if not os.path.isdir(results_dir):
     os.makedirs(results_dir)
 ani.save(results_dir + sample_file_name, fps=10)
